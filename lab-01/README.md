@@ -29,7 +29,7 @@ $$x_1,x_2,x_3,x_4\geq 0.$$
 
 - [Ручное решение в PDF](manual-solution.pdf).
 - [Решение в Excel с настройками Solver](excel-solution.xlsx).
-- [Открыть таблицу в Google Таблицах](https://docs.google.com/spreadsheets/d/110eTio1inIYBjM3YdTHuzrRTX3vhjLXl1s8ka6t7jy4/edit).
+- [Открыть таблицу в Google Таблицах](https://docs.google.com/spreadsheets/d/1WLAlplmo3eJqNW-X2OTCDIMmLBbabtrBDUC9Oxldsxk/edit).
 - [Решение на Python](python-solution.ipynb): двухэтапный симплекс-метод с выводом промежуточных таблиц.
 - [Открыть решение в Google Colab](https://drive.google.com/file/d/18e0aAwlqNFxJig-vpYrivqEbL8fugkKz/view?usp=sharing).
 

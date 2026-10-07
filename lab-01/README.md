@@ -30,6 +30,6 @@ $$x_1,x_2,x_3,x_4\geq 0.$$
 - [Ручное решение в PDF](manual-solution.pdf).
 - [Решение в Excel с настройками Solver](excel-solution.xlsx).
 - [Решение на Python](python-solution.ipynb): двухэтапный симплекс-метод с выводом промежуточных таблиц.
-- [Открыть решение в Google Colab](https://colab.research.google.com/drive/18e0aAwlqNFxJig-vpYrivqEbL8fugkKz).
+- [Открыть решение в Google Colab](https://drive.google.com/file/d/18e0aAwlqNFxJig-vpYrivqEbL8fugkKz/view?usp=sharing).
 
 Для запуска ноутбука в Colab выбрать «Среда выполнения» → «Выполнить все».

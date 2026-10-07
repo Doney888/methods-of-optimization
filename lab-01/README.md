@@ -20,17 +20,22 @@ $$z=3x_1+x_2+4x_3+2x_4$$
 при ограничениях
 
 $$2x_1+x_2+x_3\leq 8,$$
-$$x_1+x_2+x_4\geq 6,$$
+$$x_1+x_3+x_4=5,$$
+$$x_2+x_4\geq 4,$$
 $$x_1,x_2,x_3,x_4\geq 0.$$
 
-Ответ: $x^*=(0,6,0,0)$, $z_{\min}=6$.
+Ответ: $x^*=(0,0,0,5)$, $z_{\min}=10$.
 
 ## Решения
 
-- [Ручное решение в PDF](manual-solution.pdf).
+- [Ручное решение в PDF](manual-solution.pdf) и [исходник LaTeX](manual-solution.tex).
 - [Решение в Excel с настройками Solver](excel-solution.xlsx).
 - [Решение в Google Таблицах](https://docs.google.com/spreadsheets/d/1WLAlplmo3eJqNW-X2OTCDIMmLBbabtrBDUC9Oxldsxk/edit).
 - [Решение на Python](python-solution.ipynb): двухэтапный симплекс-метод с выводом промежуточных таблиц.
 - [Открыть решение в Google Colab](https://drive.google.com/file/d/18e0aAwlqNFxJig-vpYrivqEbL8fugkKz/view?usp=sharing).
 
 Для запуска ноутбука в Colab выбрать «Среда выполнения» → «Выполнить все».
+
+## Подготовка к защите
+
+[Подробный файл защиты](defense.pdf) ([LaTeX](defense.tex)): объяснение ручных таблиц и каждого перехода, модель Excel и Solver, функции и построчный разбор кода, вопросы преподавателя и ответы.

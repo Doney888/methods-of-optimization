@@ -28,6 +28,8 @@ $$x_1,x_2,x_3,x_4\geq 0.$$
 
 ## Решения
 
+- [Общий отчёт в PDF](report.pdf): ручное решение, подробная двойственная задача, Excel и Python; [исходник LaTeX](report.tex).
+
 - [Ручное решение в PDF](manual-solution.pdf) и [исходник LaTeX](manual-solution.tex). Включено решение двойственной задачи: $y^*=(0,2,0)$, $D_{\max}=10$.
 - [Решение в Excel с настройками Solver](excel-solution.xlsx).
 - [Решение в Google Таблицах](https://docs.google.com/spreadsheets/d/1WLAlplmo3eJqNW-X2OTCDIMmLBbabtrBDUC9Oxldsxk/edit).

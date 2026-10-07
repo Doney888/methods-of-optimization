@@ -35,7 +35,3 @@ $$x_1,x_2,x_3,x_4\geq 0.$$
 - [Открыть решение в Google Colab](https://drive.google.com/file/d/18e0aAwlqNFxJig-vpYrivqEbL8fugkKz/view?usp=sharing).
 
 Для запуска ноутбука в Colab выбрать «Среда выполнения» → «Выполнить все».
-
-## Подготовка к защите
-
-[Подробный файл защиты](defense.pdf) ([LaTeX](defense.tex)): объяснение ручных таблиц и каждого перехода, модель Excel и Solver, функции и построчный разбор кода, вопросы преподавателя и ответы.

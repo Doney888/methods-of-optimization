@@ -1,101 +1,175 @@
-"""Метод ломаных: строка функции, отрезок, точность по значению функции."""
-import ast
+"""Дополнительная версия: ИИ-перевод основной Kotlin/JVM-реализации."""
 import heapq
 import math
+import re
+from dataclasses import dataclass
 from time import perf_counter
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 
+@dataclass
+class Expr:
+    kind: str
+    text: str = ''
+    children: tuple = ()
+
+
+class ExpressionParser:
+    def __init__(self, expression):
+        self.source, self.pos = expression, 0
+
+    def skip(self):
+        while self.pos < len(self.source) and self.source[self.pos].isspace():
+            self.pos += 1
+
+    def take(self, token):
+        self.skip()
+        if not self.source.startswith(token, self.pos):
+            return False
+        self.pos += len(token)
+        return True
+
+    def parse(self):
+        node = self.sum()
+        self.skip()
+        if self.pos != len(self.source):
+            raise ValueError(f'Лишний символ в позиции {self.pos}')
+        return node
+
+    def sum(self):
+        node = self.product()
+        while True:
+            if self.take('+'):
+                node = Expr('binary', '+', (node, self.product()))
+            elif self.take('-'):
+                node = Expr('binary', '-', (node, self.product()))
+            else:
+                return node
+
+    def product(self):
+        node = self.unary()
+        while True:
+            self.skip()
+            if self.source.startswith('**', self.pos):
+                return node
+            if self.take('*'):
+                node = Expr('binary', '*', (node, self.unary()))
+            elif self.take('/'):
+                node = Expr('binary', '/', (node, self.unary()))
+            else:
+                return node
+
+    def unary(self):
+        if self.take('+'):
+            return Expr('unary', '+', (self.unary(),))
+        if self.take('-'):
+            return Expr('unary', '-', (self.unary(),))
+        return self.power()
+
+    def power(self):
+        node = self.atom()
+        return Expr('binary', '**', (node, self.unary())) if self.take('**') else node
+
+    def atom(self):
+        self.skip()
+        if self.take('('):
+            node = self.sum()
+            if not self.take(')'):
+                raise ValueError('Нет закрывающей скобки')
+            return node
+        if self.pos >= len(self.source):
+            raise ValueError('Неожиданный конец выражения')
+        if self.source[self.pos].isdigit() or self.source[self.pos] == '.':
+            match = re.match(r'(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?', self.source[self.pos:])
+            if match is None or not math.isfinite(float(match[0])):
+                raise ValueError('Некорректная числовая константа')
+            self.pos += len(match[0])
+            return Expr('number', match[0])
+        start = self.pos
+        while self.pos < len(self.source) and self.source[self.pos].isalpha():
+            self.pos += 1
+        name = self.source[start:self.pos]
+        if name in ('x', 'pi', 'e'):
+            return Expr('name', name)
+        if name not in ('sin', 'cos', 'exp', 'log', 'sqrt', 'abs') or not self.take('('):
+            raise ValueError('Неизвестное имя или вызов: ' + name)
+        argument = self.sum()
+        if not self.take(')'):
+            raise ValueError('Нет закрывающей скобки функции')
+        return Expr('call', name, (argument,))
+
+
+def evaluate(node, x):
+    args = [evaluate(child, x) for child in node.children]
+    if node.kind == 'number':
+        return float(node.text)
+    if node.kind == 'name':
+        return {'x': x, 'pi': math.pi, 'e': math.e}[node.text]
+    if node.kind == 'unary':
+        return -args[0] if node.text == '-' else args[0]
+    if node.kind == 'call':
+        functions = {name: getattr(math, name) for name in ('sin','cos','exp','log','sqrt')}
+        functions['abs'] = abs
+        return functions[node.text](args[0])
+    u, v = args
+    if node.text == '+': return u + v
+    if node.text == '-': return u - v
+    if node.text == '*': return u * v
+    if node.text == '/': return u / v
+    return math.pow(u, v)
+
+
 def make_function(expression):
-    # Разрешаем только арифметику, x и перечисленные математические функции.
-    functions = {name: getattr(np, name) for name in
-                 ('sin', 'cos', 'exp', 'log', 'sqrt', 'abs')}
-    tree = ast.parse(expression, mode='eval')
-    allowed = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant,
-               ast.Name, ast.Load, ast.Call, ast.Add, ast.Sub, ast.Mult,
-               ast.Div, ast.Pow, ast.UAdd, ast.USub)
-    for node in ast.walk(tree):
-        if not isinstance(node, allowed):
-            raise ValueError('Недопустимая конструкция в строке функции')
-        if isinstance(node, ast.Name) and node.id not in {'x', 'pi', 'e', *functions}:
-            raise ValueError('Неизвестное имя: ' + node.id)
-        if isinstance(node, ast.Constant) and (
-                type(node.value) not in (int, float) or not math.isfinite(node.value)):
-            raise ValueError('Нужны конечные вещественные константы')
-        if isinstance(node, ast.Call) and (
-                not isinstance(node.func, ast.Name) or node.func.id not in functions
-                or len(node.args) != 1 or node.keywords):
-            raise ValueError('У математической функции должен быть один аргумент')
-    code = compile(tree, '<function>', 'eval')
-
-    def f(x):
-        with np.errstate(all='raise'):
-            return eval(code, {'__builtins__': {}},
-                        dict(functions, x=x, pi=np.pi, e=np.e))
-
-    return f, tree.body
+    # Собственный разбор строки, как в Kotlin; произвольный код не выполняется.
+    tree = ExpressionParser(expression).parse()
+    return lambda x: evaluate(tree, x), tree
 
 
 def lipschitz_bound(node, a, b):
-    # Для каждого подвыражения возвращаем диапазон [lo, hi] и верхнюю оценку L.
+    # Диапазон и аналитическая оценка L для каждого узла выражения.
     def bound(t):
-        if isinstance(t, ast.Constant):
-            return float(t.value), float(t.value), 0.0
-        if isinstance(t, ast.Name):
-            if t.id == 'x':
-                return a, b, 1.0
-            value = {'pi': math.pi, 'e': math.e}[t.id]
-            return value, value, 0.0
-        if isinstance(t, ast.UnaryOp):
-            lo, hi, L = bound(t.operand)
-            return (-hi, -lo, L) if isinstance(t.op, ast.USub) else (lo, hi, L)
-        if isinstance(t, ast.Call):
-            lo, hi, L = bound(t.args[0])
-            name = t.func.id
-            if name in ('sin', 'cos'):
-                return -1.0, 1.0, L
-            if name == 'exp':
-                return math.exp(lo), math.exp(hi), math.exp(hi) * L
-            if name == 'log' and lo > 0:
-                return math.log(lo), math.log(hi), L / lo
-            if name == 'sqrt' and lo > 0:
-                return math.sqrt(lo), math.sqrt(hi), L / (2 * math.sqrt(lo))
-            if name == 'abs':
-                return (0.0 if lo <= 0 <= hi else min(abs(lo), abs(hi)),
-                        max(abs(lo), abs(hi)), L)
+        if t.kind == 'number': return float(t.text), float(t.text), 0.0
+        if t.kind == 'name':
+            if t.text == 'x': return a, b, 1.0
+            v = {'pi': math.pi, 'e': math.e}[t.text]
+            return v, v, 0.0
+        lo, hi, Lu = bound(t.children[0])
+        if t.kind == 'unary':
+            return (-hi, -lo, Lu) if t.text == '-' else (lo, hi, Lu)
+        if t.kind == 'call':
+            if t.text in ('sin','cos'): return -1.0, 1.0, Lu
+            if t.text == 'exp': return math.exp(lo), math.exp(hi), math.exp(hi)*Lu
+            if t.text == 'log' and lo > 0: return math.log(lo), math.log(hi), Lu/lo
+            if t.text == 'sqrt' and lo > 0: return math.sqrt(lo), math.sqrt(hi), Lu/(2*math.sqrt(lo))
+            if t.text == 'abs':
+                return (0.0 if lo <= 0 <= hi else min(abs(lo),abs(hi)), max(abs(lo),abs(hi)), Lu)
             raise ValueError('Для этого выражения задайте корректное L вручную')
-        lo, hi, Lu = bound(t.left)
-        low, high, Lv = bound(t.right)
-        M, N = max(abs(lo), abs(hi)), max(abs(low), abs(high))
-        if isinstance(t.op, ast.Add):
-            return lo + low, hi + high, Lu + Lv
-        if isinstance(t.op, ast.Sub):
-            return lo - high, hi - low, Lu + Lv
-        if isinstance(t.op, ast.Mult):
-            values = [lo * low, lo * high, hi * low, hi * high]
-            return min(values), max(values), N * Lu + M * Lv
-        if isinstance(t.op, ast.Div) and not low <= 0 <= high:
-            values = [lo / low, lo / high, hi / low, hi / high]
-            m = min(abs(low), abs(high))
-            return min(values), max(values), Lu / m + M * Lv / m**2
-        if isinstance(t.op, ast.Pow) and Lv == 0 and low == high and low.is_integer():
+        low, high, Lv = bound(t.children[1])
+        M, N = max(abs(lo),abs(hi)), max(abs(low),abs(high))
+        if t.text == '+': return lo+low, hi+high, Lu+Lv
+        if t.text == '-': return lo-high, hi-low, Lu+Lv
+        if t.text == '*':
+            values = [lo*low,lo*high,hi*low,hi*high]
+            return min(values),max(values),N*Lu+M*Lv
+        if t.text == '/' and not low <= 0 <= high:
+            values = [lo/low,lo/high,hi/low,hi/high]
+            d = min(abs(low),abs(high))
+            return min(values),max(values),Lu/d+M*Lv/d**2
+        if t.text == '**' and Lv == 0 and low == high and low.is_integer():
             n = int(low)
-            if n == 0:
-                return 1.0, 1.0, 0.0
+            if n == 0: return 1.0,1.0,0.0
             if n > 0:
-                values = [lo**n, hi**n] + ([0.0] if lo <= 0 <= hi else [])
-                return min(values), max(values), n * M**(n - 1) * Lu
+                values = [lo**n,hi**n] + ([0.0] if lo <= 0 <= hi else [])
+                return min(values),max(values),n*M**(n-1)*Lu
             if not lo <= 0 <= hi:
-                values = [lo**n, hi**n]
-                return min(values), max(values), abs(n) * min(abs(lo), abs(hi))**(n-1) * Lu
+                values = [lo**n,hi**n]
+                return min(values),max(values),abs(n)*min(abs(lo),abs(hi))**(n-1)*Lu
         raise ValueError('Не удалось оценить L автоматически; задайте его вручную')
-
     L = bound(node)[2]
-    if not math.isfinite(L):
-        raise ValueError('Оценка L не является конечной')
-    return max(L * (1 + 1e-12), 1e-12)
+    if not math.isfinite(L): raise ValueError('Оценка L должна быть конечной')
+    return max(L*(1+1e-12),1e-12)
 
 
 def intersection(xl, fl, xr, fr, L):

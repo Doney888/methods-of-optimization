@@ -29,11 +29,11 @@ $$f(x)=x^2+10(1-\cos(2\pi x)),\qquad x\in[-2,2],\qquad \varepsilon=0.01.$$
 
 - [Общий отчёт PDF](report.pdf) и [LaTeX](report.tex).
 - [Первые шаги вручную и формулы метода](manual-solution.pdf), [LaTeX](manual-solution.tex).
-- [Выполненный дополнительный Python-ноутбук](python-solution.ipynb).
+- [Выполненный дополнительный Python-ноутбук](python/python-solution.ipynb).
 - [Открыть в Google Colab](https://colab.research.google.com/drive/1tGa_qdx4pisK6OJUMDYsK57pUUTB7RtJ).
-- [ИИ-перевод Kotlin-кода на Python](piyavskii.py).
-- [Дополнительный график Python](visualization.png).
-- [Зависимости](requirements.txt).
+- [ИИ-перевод Kotlin-кода на Python](python/piyavskii.py).
+- [Дополнительный график Python](python/visualization.png).
+- [Зависимости](python/requirements.txt).
 
 Excel и двойственная задача в теме №2 не требуются. Бонус по условию: подкаст — 1 балл.
 
@@ -64,12 +64,15 @@ java -jar kotlin/lab02.jar "-(x-0.2)**2" -1 1 0.01 max auto maximum.png
 
 ## Дополнительная Python-версия
 
+Код, ноутбук, зависимости и график этой версии собраны в каталоге `python/`.
+
 В Colab: «Среда выполнения» → «Выполнить все». Ссылка на прежний ноутбук сохранена.
 Версия подготовлена с помощью ИИ-генерации: основная Kotlin-реализация переписана на Python и проверена на тех же данных.
 
 Локальный запуск дополнительной версии:
 
 ```text
+cd python
 python -m pip install -r requirements.txt
 python piyavskii.py
 ```
@@ -79,3 +82,7 @@ python piyavskii.py
 Метод хранит верхние пробы и нижние вершины соседних интервалов; следующая точка получается пересечением прямых. Равномерная сетка в `plot_result` используется только для изображения графика после расчёта.
 
 Проверено на функциях с известными ответами: смещённая парабола, линейная функция, константа, модуль, задача на максимум и Растригин.
+
+## Сдача
+
+В Moodle приложите `report.pdf`, ссылку на этот каталог репозитория и файл `kotlin-visualization.png` (либо выполненный ноутбук из `python/`). Для бонуса отдельно приложите аудиозапись подкаста.

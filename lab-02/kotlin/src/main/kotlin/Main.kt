@@ -10,9 +10,12 @@ import java.util.TreeMap
 import javax.imageio.ImageIO
 import kotlin.math.*
 
+// Узел дерева: число, переменная, операция или вызов функции.
 data class Expr(val kind: String, val text: String = "", val children: List<Expr> = emptyList())
+// Границы значений выражения и оценка его константы Липшица.
 data class Bound(val lo: Double, val hi: Double, val lip: Double)
 
+// Разбираем строку с учётом скобок и приоритетов операций.
 class ExpressionParser(expression: String) {
     private val source = expression
     private var pos = 0
@@ -29,6 +32,7 @@ class ExpressionParser(expression: String) {
         require(pos == source.length) { "Лишний символ в позиции $pos" }
         return node
     }
+    // Сначала разбираем произведения, затем сложение и вычитание.
     private fun sum(): Expr {
         var node = product()
         while (true) node = when {
@@ -54,10 +58,12 @@ class ExpressionParser(expression: String) {
         take("-") -> Expr("unary", "-", listOf(unary()))
         else -> power()
     }
+    // Степени разбираем справа налево: 2**3**2 = 2**(3**2).
     private fun power(): Expr {
         val node = atom()
         return if (take("**")) Expr("binary", "**", listOf(node, unary())) else node
     }
+    // Читаем отдельное число, имя, функцию или выражение в скобках.
     private fun atom(): Expr {
         skip()
         if (take("(")) {
@@ -88,6 +94,7 @@ class ExpressionParser(expression: String) {
     }
 }
 
+// Вычисляем дерево выражения при заданном x.
 fun evaluate(node: Expr, x: Double): Double {
     val args = node.children.map { evaluate(it, x) }
     return when (node.kind) {
@@ -127,6 +134,7 @@ fun expressionBound(node: Expr, a: Double, b: Double): Bound {
         "-" -> Bound(u.lo-v.hi, u.hi-v.lo, u.lip+v.lip)
         "*" -> {
             val values = listOf(u.lo*v.lo,u.lo*v.hi,u.hi*v.lo,u.hi*v.hi)
+            // Для произведения: L(uv) <= max|v|*L(u) + max|u|*L(v).
             Bound(values.min(),values.max(),n*u.lip+m*v.lip)
         }
         "/" -> {
@@ -155,6 +163,7 @@ fun expressionBound(node: Expr, a: Double, b: Double): Bound {
     }
 }
 
+// Один интервал: его концы, нижняя оценка и следующая пробная точка.
 data class Interval(val lower: Double, val xl: Double, val xr: Double,
                     val fl: Double, val fr: Double, val candidate: Double)
 data class Step(val iteration: Int, val upper: Double, val lower: Double,
@@ -166,6 +175,7 @@ data class Result(val expression: String, val a: Double, val b: Double, val eps:
                   val samples: List<Pair<Double,Double>>, val history: List<Step>)
 
 fun intersection(xl: Double, fl: Double, xr: Double, fr: Double, lip: Double): Interval {
+    // Координата и высота пересечения двух опорных прямых.
     val x = (xl+xr)/2 - (fr-fl)/(2*lip)
     val lower = (fl+fr-lip*(xr-xl))/2
     return Interval(lower,xl,xr,fl,fr,x)
@@ -173,48 +183,60 @@ fun intersection(xl: Double, fl: Double, xr: Double, fr: Double, lip: Double): I
 
 fun piyavskii(expression: String, a: Double, b: Double, eps: Double = 0.01,
               suppliedL: Double? = null, direction: String = "min", maxIter: Int = 100000): Result {
+    // Проверяем отрезок, точность и направление поиска.
     require(a.isFinite() && b.isFinite() && a < b) { "Нужен конечный отрезок a < b" }
     require(eps.isFinite() && eps > 0 && maxIter > 0) { "eps и maxIter должны быть положительными" }
     require(direction in setOf("min", "max")) { "Направление: min или max" }
     val node = ExpressionParser(expression).parse()
+    // Берём заданное L или оцениваем его по дереву выражения.
     val lip = suppliedL ?: max(expressionBound(node,a,b).lip*(1+1e-12),1e-12)
     require(lip.isFinite() && lip > 0) { "L должно быть конечным и положительным" }
+    // Максимум ищем через минимум функции -f.
     val sign = if (direction == "min") 1.0 else -1.0
     fun value(x: Double): Double = (sign*evaluate(node,x)).also {
         require(it.isFinite()) { "Функция должна быть конечной на отрезке" }
     }
+    // Засекаем время самого метода, без разбора строки и графика.
     val started = System.nanoTime()
+    // Две начальные пробы на концах отрезка.
     val fa = value(a); val fb = value(b)
     val samples = TreeMap<Double,Double>().apply { put(a,fa); put(b,fb) }
+    // Лучшая проба даёт верхнюю оценку минимума.
     var xBest = if (fa <= fb) a else b
     var upper = min(fa,fb)
+    // В начале очереди всегда интервал с самой низкой оценкой.
     val queue = PriorityQueue(compareBy<Interval> { it.lower }.thenBy { it.xl }.thenBy { it.xr })
     val history = mutableListOf<Step>()
     fun addInterval(xl: Double, fl: Double, xr: Double, fr: Double) {
+        // Проверяем согласованность L с уже известными пробами.
         require(abs(fr-fl) <= lip*(xr-xl)+1e-10*maxOf(1.0,abs(fl),abs(fr))) { "L противоречит известным пробам" }
         queue.add(intersection(xl,fl,xr,fr,lip))
     }
     addInterval(a,fa,b,fb)
     var iteration = 0
     while (true) {
+        // 1. Выбираем самый перспективный интервал.
         val current = queue.peek()
         history.add(Step(iteration,upper,current.lower,xBest,current.candidate))
-        // Остановка по разрыву доказанных оценок, а не по расстоянию между пробами.
+        // 2. Останавливаемся, когда разрыв оценок не больше eps.
         if (upper-current.lower <= eps) break
         check(iteration < maxIter) { "Превышен maxIter; точность не достигнута" }
+        // 3. Удаляем интервал и вычисляем функцию в его нижней вершине.
         queue.remove()
         val x = current.candidate
         check(x > current.xl && x < current.xr && !samples.containsKey(x)) { "Предел машинной точности" }
         val fx = value(x)
         samples[x] = fx
+        // 4. При необходимости обновляем лучший найденный ответ.
         if (fx < upper) { xBest = x; upper = fx }
-        // Выбранный интервал заменяется двумя; остальные вершины не пересчитываются.
+        // 5. Вместо выбранного интервала добавляем два новых.
         addInterval(current.xl,current.fl,x,fx)
         addInterval(x,fx,current.xr,current.fr)
         iteration++
     }
     val elapsed = (System.nanoTime()-started)/1e9
     val lower = queue.peek().lower
+    // Возвращаем ответ и границы в знаках исходной функции.
     return Result(expression,a,b,eps,lip,direction,xBest,sign*upper,
         if (sign == 1.0) lower else -upper, if (sign == 1.0) upper else -lower,
         upper-lower,iteration,samples.size,elapsed,samples.map { it.key to sign*it.value },history)
@@ -224,6 +246,7 @@ fun plotResult(result: Result, path: String) {
     // Сетка нужна только для рисунка: оптимизация выше её не использует.
     val node = ExpressionParser(result.expression).parse()
     val sign = if (result.direction == "min") 1.0 else -1.0
+    // Восстанавливаем ломаную по соседним пробам и их пересечениям.
     val polygon = mutableListOf(result.samples.first())
     result.samples.zipWithNext().forEach { (left,right) ->
         val v = intersection(left.first,sign*left.second,right.first,sign*right.second,result.lip)
@@ -239,6 +262,7 @@ fun plotResult(result: Result, path: String) {
     g.color = Color.WHITE; g.fillRect(0,0,image.width,image.height)
     fun panel(left: Int, xmin: Double, xmax: Double, ymin: Double, ymax: Double, title: String) {
         val top = 70; val width = 650; val height = 440
+        // Переводим координаты графика в пиксели изображения.
         fun px(x: Double) = left+((x-xmin)/(xmax-xmin)*width).toInt()
         fun py(y: Double) = top+height-((y-ymin)/(ymax-ymin)*height).toInt()
         g.font = Font("SansSerif",Font.PLAIN,18)
@@ -279,6 +303,7 @@ fun plotResult(result: Result, path: String) {
     ImageIO.write(image,"png",File(path))
 }
 
+// Проверяем метод на функциях с известными ответами.
 fun selfTest() {
     data class Case(val f: String,val a: Double,val b: Double,val mode: String,val exact: Double)
     val cases = listOf(Case("(x-0.37)**2",-1.0,2.0,"min",0.0),Case("x",-2.0,3.0,"min",-2.0),
@@ -296,6 +321,7 @@ fun main(args: Array<String>) {
     Locale.setDefault(Locale.US)
     if (args.firstOrNull() == "--self-test") { selfTest(); return }
     require(args.isEmpty() || args.size in 4..7) { "Аргументы: expression a b eps [min|max] [L|auto] [png]" }
+    // Читаем параметры; без аргументов запускаем пример Растригина.
     val expression = args.getOrNull(0) ?: "x**2 + 10*(1-cos(2*pi*x))"
     val a = args.getOrNull(1)?.toDouble() ?: -2.0
     val b = args.getOrNull(2)?.toDouble() ?: 2.0
@@ -303,6 +329,7 @@ fun main(args: Array<String>) {
     val mode = args.getOrNull(4) ?: "min"
     val suppliedL = args.getOrNull(5)?.takeUnless { it == "auto" }?.toDouble()
     val path = args.getOrNull(6) ?: "kotlin-visualization.png"
+    // Выполняем расчёт, выводим ответ и сохраняем график.
     val r = piyavskii(expression,a,b,eps,suppliedL,mode)
     println("expression=$expression")
     println("x=${r.x}\nf=${r.value}\nL=${r.lip}\nlower=${r.lower}\nupper=${r.upper}\ngap=${r.gap}")

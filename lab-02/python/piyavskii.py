@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+# Узел дерева: число, переменная, операция или вызов функции.
 @dataclass
 class Expr:
     kind: str
@@ -16,6 +17,7 @@ class Expr:
     children: tuple = ()
 
 
+# Разбираем строку с учётом скобок и приоритетов операций.
 class ExpressionParser:
     def __init__(self, expression):
         self.source, self.pos = expression, 0
@@ -38,6 +40,7 @@ class ExpressionParser:
             raise ValueError(f'Лишний символ в позиции {self.pos}')
         return node
 
+    # Сначала разбираем произведения, затем сложение и вычитание.
     def sum(self):
         node = self.product()
         while True:
@@ -68,10 +71,12 @@ class ExpressionParser:
             return Expr('unary', '-', (self.unary(),))
         return self.power()
 
+    # Степени разбираем справа налево: 2**3**2 = 2**(3**2).
     def power(self):
         node = self.atom()
         return Expr('binary', '**', (node, self.unary())) if self.take('**') else node
 
+    # Читаем число, имя, функцию или выражение в скобках.
     def atom(self):
         self.skip()
         if self.take('('):
@@ -101,6 +106,7 @@ class ExpressionParser:
         return Expr('call', name, (argument,))
 
 
+# Вычисляем дерево выражения при заданном x.
 def evaluate(node, x):
     args = [evaluate(child, x) for child in node.children]
     if node.kind == 'number':
@@ -152,6 +158,7 @@ def lipschitz_bound(node, a, b):
         if t.text == '-': return lo-high, hi-low, Lu+Lv
         if t.text == '*':
             values = [lo*low,lo*high,hi*low,hi*high]
+            # Для произведения: L(uv) <= max|v|*L(u) + max|u|*L(v).
             return min(values),max(values),N*Lu+M*Lv
         if t.text == '/' and not low <= 0 <= high:
             values = [lo/low,lo/high,hi/low,hi/high]
@@ -180,6 +187,7 @@ def intersection(xl, fl, xr, fr, L):
 
 
 def piyavskii(expression, a, b, eps=0.01, L=None, direction='min', max_iter=100000):
+    # Проверяем отрезок, точность и направление поиска.
     if not (math.isfinite(a) and math.isfinite(b) and a < b):
         raise ValueError('Нужен конечный отрезок a < b')
     if not math.isfinite(eps) or eps <= 0 or max_iter <= 0:
@@ -187,9 +195,11 @@ def piyavskii(expression, a, b, eps=0.01, L=None, direction='min', max_iter=1000
     if direction not in ('min', 'max'):
         raise ValueError('direction должен быть min или max')
     f, tree = make_function(expression)
+    # Берём заданное L или оцениваем его по дереву выражения.
     L = lipschitz_bound(tree, a, b) if L is None else float(L)
     if not math.isfinite(L) or L <= 0:
         raise ValueError('L должно быть положительным и конечным')
+    # Максимум ищем через минимум функции -f.
     sign = 1 if direction == 'min' else -1
 
     def value(x):
@@ -198,44 +208,54 @@ def piyavskii(expression, a, b, eps=0.01, L=None, direction='min', max_iter=1000
             raise ValueError('Функция должна быть конечной на отрезке')
         return y
 
+    # Засекаем время самого метода, без разбора строки и графика.
     started = perf_counter()
+    # Две начальные пробы на концах отрезка.
     fa, fb = value(a), value(b)
     samples = {a: fa, b: fb}
+    # Лучшая проба даёт верхнюю оценку минимума.
     x_best, upper = min(samples.items(), key=lambda p: p[1])
     heap, history = [], []
 
     def add_interval(xl, fl, xr, fr):
+        # Проверяем согласованность L с уже известными пробами.
         if abs(fr - fl) > L * (xr - xl) + 1e-10 * max(1, abs(fl), abs(fr)):
             raise ValueError('Заданное L противоречит уже вычисленным значениям')
         x, lower = intersection(xl, fl, xr, fr, L)
+        # Куча выдаёт первым интервал с наименьшим lower.
         heapq.heappush(heap, (lower, xl, xr, fl, fr, x))
 
     add_interval(a, fa, b, fb)
     iteration = 0
     while True:
+        # 1. Читаем самую низкую оценку из очереди интервалов.
         lower = heap[0][0]
         history.append({'iteration': iteration, 'upper': upper,
                         'lower': lower, 'gap': upper - lower, 'x_best': x_best,
                         'candidate': heap[0][5], 'left': heap[0][1], 'right': heap[0][2]})
-        # Остановка по доказанной оценке погрешности значения функции.
+        # 2. Останавливаемся, когда разрыв оценок не больше eps.
         if upper - lower <= eps:
             break
         if iteration >= max_iter:
             raise RuntimeError('Превышен max_iter, точность ещё не достигнута')
+        # 3. Удаляем выбранный интервал и берём его нижнюю вершину.
         _, xl, xr, fl, fr, x = heapq.heappop(heap)
         if not xl < x < xr or x in samples:
             raise RuntimeError('Достигнут предел машинной точности')
+        # Вычисляем и сохраняем новую пробу функции.
         fx = value(x)
         samples[x] = fx
+        # 4. При необходимости обновляем лучший найденный ответ.
         if fx < upper:
             x_best, upper = x, fx
-        # Удалённый интервал заменяем двумя; остальные вершины сохраняются.
+        # 5. Вместо выбранного интервала добавляем два новых.
         add_interval(xl, fl, x, fx)
         add_interval(x, fx, xr, fr)
         iteration += 1
 
     elapsed = perf_counter() - started
     vertices = sorted(samples.items())
+    # Возвращаем ответ и границы в знаках исходной функции.
     return {'expression': expression, 'a': a, 'b': b, 'eps': eps, 'L': L,
             'direction': direction, 'x': x_best, 'fun': sign * upper,
             'lower': lower if sign == 1 else -upper,
@@ -264,6 +284,7 @@ def plot_result(result, path=None):
         ax.scatter([result['x']], [result['fun']], color='#bb2233', zorder=5, label='Найденный экстремум')
         ax.set_xlabel('x'); ax.set_ylabel('f(x)'); ax.grid(alpha=0.2)
     axes[0].set_title('Весь отрезок'); axes[0].legend(fontsize=8)
+    # Во второй части рисунка увеличиваем окрестность найденной точки.
     width = min((result['b']-result['a'])/4, 0.15)
     axes[1].set_xlim(max(result['a'],result['x']-width), min(result['b'],result['x']+width))
     level = result['fun']
@@ -275,6 +296,7 @@ def plot_result(result, path=None):
     return fig
 
 
+# Запускаем пример Растригина и выводим результат с графиком.
 if __name__ == '__main__':
     result = piyavskii('x**2 + 10*(1-cos(2*pi*x))', -2.0, 2.0, 0.01)
     print({k: result[k] for k in ('x', 'fun', 'L', 'lower', 'upper', 'gap',

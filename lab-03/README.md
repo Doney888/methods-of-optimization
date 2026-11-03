@@ -9,6 +9,13 @@
 - [Отчёт PDF](report.pdf), [исходник LaTeX](report.tex).
 - [Код Python](python/lagrange.py), [результат запуска](python/result.txt).
 
+## Google Colab
+
+[Открыть ноутбук в Google Colab](https://colab.research.google.com/github/Doney888/methods-of-optimization/blob/main/lab-03/python/lab03-lagrange.ipynb).
+
+Ноутбук доступен всем по ссылке и содержит сохранённый результат запуска.
+Для выполнения кода войдите в Google и выберите «Среда выполнения → Выполнить все».
+
 ## Запуск
 
 Из каталога lab-03, Python 3:

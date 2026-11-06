@@ -17,7 +17,9 @@ def lagrange():
     points = []
     for lam in quadratic_roots(16, 0, -1):
         ratio = -2 * lam  # y = ratio*x
+        # Подставляем y=ratio*x в ограничение и вычисляем модуль x.
         x_abs = sqrt(8 / (1 + 4 * ratio * ratio))
+        # Для каждого множителя восстанавливаем оба знака координаты x.
         for sign in (-1, 1):
             x = sign * x_abs
             y = ratio * x
@@ -37,6 +39,7 @@ def main():
     print('Определитель: 16*lambda^2 - 1 = 0')
     print('       x          y       lambda       f        невязка')
     for (x, y, lam), value in zip(points, values):
+        # Невязка - наибольшая абсолютная ошибка трёх уравнений системы.
         residual = max(abs(y + 2*lam*x), abs(x + 8*lam*y),
                        abs(x*x + 4*y*y - 8))
         if residual >= 1e-10:
@@ -49,3 +52,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

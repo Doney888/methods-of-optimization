@@ -1,55 +1,106 @@
-from math import sqrt
+import sympy as sp
 
 
-def quadratic_roots(a, b, c):
-    """Корни квадратного уравнения a*t^2 + b*t + c = 0."""
-    d = b * b - 4 * a * c
-    if d < 0:
-        return []
-    if d == 0:
-        return [-b / (2 * a)]
-    return [(-b - sqrt(d)) / (2 * a), (-b + sqrt(d)) / (2 * a)]
+def real_solutions(equations, unknowns):
+    """Решить систему и оставить изолированные действительные решения."""
+    solutions = sp.solve(equations, unknowns, dict=True)
+    result = []
+    for solution in solutions:
+        # Семейства решений нельзя незаметно заменить конечным списком точек.
+        if any(v not in solution for v in unknowns):
+            raise ValueError('Получено семейство решений; требуется отдельное исследование')
+        point = {v: sp.simplify(solution[v]) for v in unknowns}
+        if any(value.free_symbols for value in point.values()):
+            raise ValueError('Получены параметрические решения')
+        if any(value.is_real is False for value in point.values()):
+            continue
+        if any(value.is_real is not True for value in point.values()):
+            raise ValueError('Не удалось установить действительность решения')
+        if point not in result:
+            result.append(point)
+    return result
 
 
-def lagrange():
-    # Вариант 4: y+2*lambda*x=0; x+8*lambda*y=0; x^2+4*y^2=8.
-    # Пара (0,0) недопустима, поэтому определитель 16*lambda^2-1=0.
-    points = []
-    for lam in quadratic_roots(16, 0, -1):
-        ratio = -2 * lam  # y = ratio*x
-        # Подставляем y=ratio*x в ограничение и вычисляем модуль x.
-        x_abs = sqrt(8 / (1 + 4 * ratio * ratio))
-        # Для каждого множителя восстанавливаем оба знака координаты x.
-        for sign in (-1, 1):
-            x = sign * x_abs
-            y = ratio * x
-            points.append((x, y, lam))
-    return points
+def solve_lagrange(f, g, variables):
+    """Метод Лагранжа: две переменные, одно равенство g=0."""
+    x, y = variables
+    lam = sp.Symbol('lambda', real=True)
+    f, g = sp.sympify(f), sp.sympify(g)
+    print('1. Исходная задача')
+    print('f =', f)
+    print('g =', g, '= 0')
+
+    # Нерегулярная точка должна одновременно лежать на ограничении.
+    gradient_g = [sp.diff(g, v) for v in variables]
+    irregular = real_solutions([g] + gradient_g, variables)
+    print('\n2. Проверка регулярности')
+    print('grad g =', gradient_g)
+    print('Нерегулярные допустимые точки:', irregular or 'нет')
+    if irregular:
+        raise ValueError('Нерегулярные точки найдены; их нужно исследовать отдельно')
+
+    # Самостоятельно составляем L и все необходимые условия метода.
+    lagrangian = sp.expand(f + lam * g)
+    unknowns = [x, y, lam]
+    system = [sp.diff(lagrangian, v) for v in unknowns]
+    print('\n3. Функция Лагранжа')
+    print('L =', lagrangian)
+    print('\n4. Частные производные и система')
+    for variable, expression in zip(unknowns, system):
+        print(f'dL/d{variable} = {expression} = 0')
+
+    solutions = real_solutions(system, unknowns)
+    if not solutions:
+        raise ValueError('Изолированные действительные решения системы не найдены')
+
+    # Вторые производные по x,y: исследуем L вдоль касательной к g=0.
+    hessian = sp.Matrix([[sp.diff(lagrangian, u, v)
+                          for v in variables] for u in variables])
+    tangent = sp.Matrix([gradient_g[1], -gradient_g[0]])
+    candidates = []
+    print('\n5. Найденные точки, проверка и характер')
+    for point in solutions:
+        residuals = [sp.simplify(expr.subs(point)) for expr in system]
+        if any(value != 0 for value in residuals):
+            raise ArithmeticError('Решение не прошло точную проверку системы')
+        if sp.simplify(g.subs(point)) != 0:
+            raise ArithmeticError('Точка не удовлетворяет исходному ограничению')
+        value = sp.simplify(f.subs(point))
+        q = sp.simplify((tangent.T * hessian * tangent)[0].subs(point))
+        if q.is_positive:
+            kind = 'строгий локальный минимум'
+        elif q.is_negative:
+            kind = 'строгий локальный максимум'
+        else:
+            kind = 'второй порядок не даёт ответа'
+        candidates.append({'point': point, 'value': value, 'q': q, 'kind': kind})
+        print(f'x={point[x]}, y={point[y]}, lambda={point[lam]}; '
+              f'f={value}; невязки={residuals}; q={q}; {kind}')
+
+    # Это сравнение кандидатов; глобальность отдельно обосновывается в отчёте.
+    values = [item['value'] for item in candidates]
+    minimum = min(values, key=lambda v: float(v))
+    maximum = max(values, key=lambda v: float(v))
+    print('\n6. Сравнение значений в найденных точках')
+    print('Наименьшее значение:', minimum)
+    print('Наибольшее значение:', maximum)
+    return {'lagrangian': lagrangian, 'system': system,
+            'irregular': irregular, 'hessian': hessian,
+            'candidates': candidates, 'minimum': minimum, 'maximum': maximum}
 
 
 def main():
-    points = lagrange()
-    values = [x * y for x, y, lam in points]
-    minimum, maximum = min(values), max(values)
-    print('Лабораторная работа 3. Метод множителей Лагранжа')
-    print('Борисюк Е. Г. Вариант 4')
-    print('f(x,y) = x*y; x^2 + 4*y^2 = 8')
-    print('L = x*y + lambda*(x^2 + 4*y^2 - 8)')
-    print('Нерегулярных допустимых точек нет: (0,0) не лежит на эллипсе.')
-    print('Определитель: 16*lambda^2 - 1 = 0')
-    print('       x          y       lambda       f        невязка')
-    for (x, y, lam), value in zip(points, values):
-        # Невязка - наибольшая абсолютная ошибка трёх уравнений системы.
-        residual = max(abs(y + 2*lam*x), abs(x + 8*lam*y),
-                       abs(x*x + 4*y*y - 8))
-        if residual >= 1e-10:
-            raise ArithmeticError('Точка не удовлетворяет системе Лагранжа')
-        kind = 'минимум' if abs(value-minimum) < 1e-10 else 'максимум'
-        print(f'{x:10.6f} {y:10.6f} {lam:10.6f} {value:10.6f} {residual:.2e}  {kind}')
-    print(f'Глобальный минимум: {minimum:.6f}')
-    print(f'Глобальный максимум: {maximum:.6f}')
+    print('Лабораторная работа 3. Борисюк Е. Г. Вариант 4\n')
+    x, y = sp.symbols('x y', real=True)
+    f = x * y
+    g = x**2 + 4*y**2 - 8
+    result = solve_lagrange(f, g, (x, y))
+    print('\n7. Ответ для варианта 4')
+    print('Глобальный минимум:', result['minimum'])
+    print('Глобальный максимум:', result['maximum'])
+    print('Глобальность следует из компактности эллипса и полноты списка точек;')
+    print('подробное обоснование приведено в отчёте.')
 
 
 if __name__ == '__main__':
     main()
-
